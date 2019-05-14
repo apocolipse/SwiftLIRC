@@ -27,7 +27,7 @@ import Glibc
 
 import Foundation
 
-public enum LIRCError : LocalizedError {
+public enum LIRCError : Error, CustomStringConvertible {
   case socketError(error: String)
   case sendFailed(error: String)
   case replyTooShort(reply: String)
@@ -36,7 +36,7 @@ public enum LIRCError : LocalizedError {
   case remoteNotFound(remote: String)
   case commandNotFound(command: String)
   
-  var localizedDescription: String {
+  public var description: String {
     switch self {
     case .socketError(let error):       return "Socket Error \(error)"
     case .sendFailed(let error):        return "Send Failed \(error)"
