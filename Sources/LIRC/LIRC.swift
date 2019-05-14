@@ -33,6 +33,8 @@ public enum LIRCError : LocalizedError {
   case replyTooShort(reply: String)
   case badReply(error: String)
   case badData(error: String, data: [String]?)
+  case remoteNotFound(remote: String)
+  case commandNotFound(command: String)
   
   var localizedDescription: String {
     switch self {
@@ -41,6 +43,8 @@ public enum LIRCError : LocalizedError {
     case .replyTooShort(let reply):     return "Reply Too Short \(reply)"
     case .badReply(let error):          return "Bad Reply \(error)"
     case .badData(let error, let data): return "Bad Data \(error): \(data ?? [])"
+    case .remoteNotFound(let remote):   return "Remote not found: \(remote)"
+    case .commandNotFound(let command): return "Command not found: \(command)"
     }
   }
 }
@@ -67,6 +71,9 @@ public class LIRC {
   }
   
   private var _allRemotes: [Remote] = []
+  
+  
+  /// All remotes associated with this LIRC instance
   public var allRemotes: [Remote] {
     if _allRemotes.count == 0 {
       do {
@@ -87,12 +94,25 @@ public class LIRC {
     }
   }
   
+  
+  /// Refresh remote list
+  ///
+  /// - Throws: LIRCError
   public func refreshRemotes() throws {
     _allRemotes = try generateRemotes()
   }
   
-  public func remote(named: String) -> Remote? {
-    return allRemotes.filter({$0.name.lowercased() == named.lowercased()}).first
+  
+  /// Get remote by string name
+  ///
+  /// - Parameter named: name of remote
+  /// - Returns: Remote if found
+  /// - Throws: LIRCError.remoteNotFound if remote doesn't exist.
+  public func remote(named: String) throws -> Remote {
+    guard let r = allRemotes.filter({$0.name.lowercased() == named.lowercased()}).first else {
+      throw LIRCError.remoteNotFound(remote: named)
+    }
+    return r
   }
   
   /// Lists all remotes for the current LIRC instance
