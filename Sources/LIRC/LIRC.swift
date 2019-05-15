@@ -168,9 +168,9 @@ public class LIRC {
     var fd: Int32 = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
     #else
     var fd: Int32 = socket(AF_UNIX, SOCK_STREAM, 0)
-    defer { close(fd) }
-    
     #endif
+    defer { close(fd) }
+
     if fd == -1 { throw LIRCError.socketError(error: "Error creating socket: \(String(cString: strerror(errno)))") }
     _ = try withUnsafePointer(to: addr) { ptr in
       try ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { ptr in
