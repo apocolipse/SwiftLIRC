@@ -174,7 +174,7 @@ public class LIRC {
     
     var data: [String] = []
     
-    let message = "\(directive) \(remote) \(code) \(count)"
+    let message = "\(directive) \(remote) \(code)" + ((count > 0) ? " \(count)" : "")
     if waitForReply == true,
        let output = try s.send(text: message, discardResult: !waitForReply) {
       

@@ -106,13 +106,17 @@ internal class LIRCSocket {
     case  AF_INET:
       var addr = sockaddr_in()
       memcpy(&addr, info!.pointee.ai_addr, Int(MemoryLayout<sockaddr_in>.size))
+      self.fd = socket(AF_INET, SOCK_STREAM, 0)
       self.addr = .ipv4(addr)
     case AF_INET6:
       var addr = sockaddr_in6()
       memcpy(&addr, info!.pointee.ai_addr, Int(MemoryLayout<sockaddr_in6>.size))
+      self.fd = socket(AF_INET6, SOCK_STREAM, 0)
       self.addr = .ipv6(addr)
     default: throw LIRCError.socketError(error: "Unknown socket family \(info!.pointee.ai_family)")
     }
+    
+    
   }
   
   public init(path: String = "/var/run/lirc/lircd") throws {
@@ -166,7 +170,7 @@ internal class LIRCSocket {
     #endif
     
     if s < 0 {
-      throw LIRCError.sendFailed(error: "Error sending: \(String(cString: strerror(errno)))")
+      throw LIRCError.sendFailed(error: "Error sending to socket: \(String(cString: strerror(errno)))")
     }
     var output: String?
     if !discardResult {

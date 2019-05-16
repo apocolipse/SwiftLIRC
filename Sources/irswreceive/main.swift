@@ -11,7 +11,6 @@ import LIRC
 
 func main() throws {
   let l = LIRC(host: "10.0.0.5", port: 8765)
-  print(l.allRemotes)
   try l.addListener {
     print($0)
   }
