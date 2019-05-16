@@ -47,7 +47,7 @@ public struct Remote: CustomStringConvertible {
       self.parentName = parentName
       self.lircInstance = lirc
     }
-    
+
     
     /// Send IR command
     ///

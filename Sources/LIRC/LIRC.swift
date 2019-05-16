@@ -27,6 +27,7 @@ import Glibc
 
 import Foundation
 
+
 public enum LIRCError : Error, CustomStringConvertible {
   case socketError(error: String)
   case sendFailed(error: String)
@@ -53,6 +54,8 @@ public enum SendType : String {
   case once, start, stop
 }
 
+
+
 /// LIRC is intended to be a barebones LIRC interface in Swift
 /// No external Socket or networking libraries are required
 /// Currently only UDP Sockets are supported, TCP support planned
@@ -60,14 +63,28 @@ public enum SendType : String {
 public class LIRC {
   
   /// Path for LIRC socket, currently only UDP sockets supported
-  var socketPath: String
-  
-  
+  var socketPath: String?
+  var host: String?
+  var port: Int16?
+
   /// Initialize LIRC structure
   ///
   /// - Parameter socketPath: Path for LIRC socket
   public init(socketPath: String = "/var/run/lirc/lircd") {
     self.socketPath = socketPath
+  }
+ 
+  public init(host: String, port: Int16) {
+    self.host = host
+    self.port = port
+  }
+  
+  private func lircSocket() throws -> LIRCSocket {
+    if socketPath != nil {
+      return try LIRCSocket(path: socketPath!)
+    } else {
+      return try LIRCSocket(host: host!, port: port!)
+    }
   }
   
   private var _allRemotes: [Remote] = []
@@ -120,7 +137,7 @@ public class LIRC {
   /// - Returns: Array of Strings for each Remote name
   /// - Throws: LIRCError if there were any communication issues.
   func listRemotes() throws -> [String] {
-    return try LIRC.socketSend("list", "", "", socketPath: socketPath, shouldRead: true)
+    return try socketSend("list", "", "", waitForReply: true)
   }
   
   
@@ -131,7 +148,7 @@ public class LIRC {
   /// - Throws: LIRCError if there were any communication issues.
   func listCommands(for remote: String) throws -> [String] {
     
-    let c = try LIRC.socketSend("list", remote, "", socketPath: socketPath, shouldRead: true)
+    let c = try socketSend("list", remote, "", waitForReply: true)
     return c.map({ $0.components(separatedBy: " ").last! })
   }
   
@@ -145,87 +162,57 @@ public class LIRC {
   ///                   If false, LIRC response errors are ignored,
   ///                   if true, LIRCError will be thrown if LIRC response has errors
   /// - Throws: LIRCError (see waitForReply)
-  func send(_ type: SendType = .once, remote: String, command: String, waitForReply: Bool = false) throws {
-    try LIRC.socketSend("send_\(type.rawValue)", remote, command, socketPath: socketPath, shouldRead: waitForReply)
+  func send(_ type: SendType = .once, remote: String, command: String, count: Int = 0, waitForReply: Bool = false) throws {
+    try socketSend("send_\(type.rawValue)", remote, command, count: count, waitForReply: waitForReply)
   }
-  
-  /// Send LIRC Command on socket (internal)
-  ///
-  /// - Parameters:
-  ///   - directive: LIRC directive to send
-  ///   - remote: Remote name or empty
-  ///   - code: Command name or empty
-  ///   - socketPath: Path for Unix socket
-  ///   - shouldRead: Should read response?  Returns early if false
-  /// - Returns: Array of Strings if data is present in response
-  /// - Throws: LIRCError if there are any communication errors or LIRC Reply errors
-  @discardableResult
-  private static func socketSend(_ directive: String, _ remote: String, _ code: String, socketPath: String, shouldRead: Bool = false) throws -> [String] {
-    var addr = sockaddr_un()
-    addr.sun_family = sa_family_t(AF_UNIX)
-    strcpy(&addr.sun_path.0, socketPath)
-    #if os(Linux)
-    var fd: Int32 = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
-    #else
-    var fd: Int32 = socket(AF_UNIX, SOCK_STREAM, 0)
-    #endif
-    defer { close(fd) }
 
-    if fd == -1 { throw LIRCError.socketError(error: "Error creating socket: \(String(cString: strerror(errno)))") }
-    _ = try withUnsafePointer(to: addr) { ptr in
-      try ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { ptr in
-        let c = connect(fd, ptr, socklen_t(MemoryLayout<sockaddr_un>.size))
-        if c < 0 {
-          throw LIRCError.socketError(error: "Error connecting to socket: \(String(cString: strerror(errno)))")
-        }
-      }
-    }
-    let m = "\(directive) \(remote) \(code)\n"
-    var sendFlags: Int32 = 0
-    #if os(Linux)
-    sendFlags = Int32(MSG_NOSIGNAL)
-    let sendRet = Glibc.send(fd, m, m.count, sendFlags)
-    #else
-    let sendRet = Darwin.send(fd, m, m.count, sendFlags)
-    #endif
-    if sendRet < 0 {
-      throw LIRCError.sendFailed(error: "Error sending: \(String(cString: strerror(errno)))")
-    }
-    usleep(1000)
+  
+  
+  @discardableResult
+  private func socketSend(_ directive: String, _ remote: String, _ code: String, count: Int = 0, waitForReply: Bool = false) throws -> [String] {
+    let s = try lircSocket()
     
     var data: [String] = []
     
-    if shouldRead {
-      var dat = [CChar](repeating: 0, count: 4096)
-      var recvFlags: Int32 = 0
-      recvFlags |= Int32(MSG_DONTWAIT)
-      recv(fd, &dat, 2048, recvFlags)
+    let message = "\(directive) \(remote) \(code) \(count)"
+    if waitForReply == true,
+       let output = try s.send(text: message, discardResult: !waitForReply) {
       
-      let op = String(bytes: dat.map({UInt8(bitPattern: $0)}), encoding: .ascii)
-      let output = op ?? ""
-      
-      let lines = output.components(separatedBy: "\n").filter({$0 != "" && !$0.contains("\0") })
-      if lines.count >= 4 {
-        if lines[0] != "BEGIN" { throw LIRCError.badReply(error: "No BEGIN: \(output)") }
-        if lines[1] != "\(directive) \(remote) \(code)" { throw LIRCError.badReply(error: "Wrong reply message, expected \(m): \(output)") }
-        if lines[2] != "SUCCESS" { throw LIRCError.badReply(error: "Not SUCCESS: \(output)") }
-        if lines.last != "END" { throw LIRCError.badReply(error: "No END: \(output)") }
-        if lines[3] == "DATA" {
-          if let count = Int(lines[4]) {
-            for i in 5..<min(5+count, lines.count) {
-              data.append(lines[i])
-            }
-            if data.count < count {
-              throw LIRCError.badData(error: "Expected \(count), got \(data.count)", data: data)
-            }
-          } else { throw LIRCError.badData(error: "Couldn't get Data count \(output)", data: nil)}
-          
-        } else { data.append(lines[2]) } // Good, append response message (SUCCESS)
-        
-      } else {
-        throw LIRCError.replyTooShort(reply: output)
+        let lines = output.components(separatedBy: "\n").filter({$0 != "" && !$0.contains("\0") })
+        if lines.count >= 4 {
+          if lines[0] != "BEGIN" { throw LIRCError.badReply(error: "No BEGIN: \(output)") }
+          if lines[1] != "\(directive) \(remote) \(code)" { throw LIRCError.badReply(error: "Wrong reply message, expected \(message): \(output)") }
+          if lines[2] != "SUCCESS" { throw LIRCError.badReply(error: "Not SUCCESS: \(output)") }
+          if lines.last != "END" { throw LIRCError.badReply(error: "No END: \(output)") }
+          if lines[3] == "DATA" {
+            if let count = Int(lines[4]) {
+              for i in 5..<min(5+count, lines.count) {
+                data.append(lines[i])
+              }
+              if data.count < count {
+                throw LIRCError.badData(error: "Expected \(count), got \(data.count)", data: data)
+              }
+            } else { throw LIRCError.badData(error: "Couldn't get Data count \(output)", data: nil)}
+            
+          } else { data.append(lines[2]) } // Good, append response message (SUCCESS)
       }
     }
     return data
+  }
+  
+  private var listeners: [LIRCSocket] = []
+  
+  public func addListener(_ closure: @escaping (String?) -> Void) throws {
+    let s = try lircSocket()
+    try s.addListener(closure)
+    listeners.append(s)
+  }
+  
+  public func removeAllListeners() {
+    self.listeners.removeAll()
+  }
+  
+  deinit {
+    removeAllListeners()
   }
 }
