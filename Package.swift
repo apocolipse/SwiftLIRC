@@ -6,7 +6,6 @@ import PackageDescription
 let package = Package(
   name: "SwiftLIRC",
   products: [
-    .executable(name: "irswend", targets: ["irswend"]),
     .library(name: "LIRC", targets: ["LIRC"])
   ],
   dependencies: [
@@ -16,6 +15,10 @@ let package = Package(
       name: "irswend",
       dependencies: ["LIRC"],
       path: "./Sources/irswend"),
+    .target(
+      name: "irswreceive",
+      dependencies: ["LIRC"],
+      path: "./Sources/irswreceive"),
     .target(
       name: "LIRC",
       path: "./Sources/LIRC"),
