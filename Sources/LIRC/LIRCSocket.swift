@@ -101,17 +101,22 @@ internal class LIRCSocket {
     print(info!.pointee.ai_addr.pointee)
     print(info!.pointee.ai_next.pointee)
     
+    #if os(Linux)
+    let sock_stream = Int32(SOCK_STREAM.rawValue)
+    #else
+    let sock_stream = SOCK_STREAM
+    #endif
     
     switch info!.pointee.ai_family {
     case  AF_INET:
       var addr = sockaddr_in()
       memcpy(&addr, info!.pointee.ai_addr, Int(MemoryLayout<sockaddr_in>.size))
-      self.fd = socket(AF_INET, SOCK_STREAM, 0)
+      self.fd = socket(AF_INET, sock_stream, 0)
       self.addr = .ipv4(addr)
     case AF_INET6:
       var addr = sockaddr_in6()
       memcpy(&addr, info!.pointee.ai_addr, Int(MemoryLayout<sockaddr_in6>.size))
-      self.fd = socket(AF_INET6, SOCK_STREAM, 0)
+      self.fd = socket(AF_INET6, sock_stream, 0)
       self.addr = .ipv6(addr)
     default: throw LIRCError.socketError(error: "Unknown socket family \(info!.pointee.ai_family)")
     }
@@ -126,10 +131,13 @@ internal class LIRCSocket {
     strcpy(&addr.sun_path.0, path)
     
     #if os(Linux)
-    let fd: Int32 = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+    let sock_stream = Int32(SOCK_STREAM.rawValue)
     #else
-    let fd: Int32 = socket(AF_UNIX, SOCK_STREAM, 0)
+    let sock_stream = SOCK_STREAM
     #endif
+
+    let fd: Int32 = socket(AF_UNIX, sock_stream, 0)
+
     if fd == -1 { throw LIRCError.socketError(error: "Error creating socket: \(String(cString: strerror(errno)))") }
     
     self.fd = fd
@@ -208,6 +216,5 @@ internal class LIRCSocket {
       
       closure(readString)
     })
-    self.io?.activate()
   }
 }
