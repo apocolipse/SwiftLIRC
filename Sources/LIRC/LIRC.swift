@@ -39,7 +39,7 @@ public enum LIRCError : Error, CustomStringConvertible {
   
   public var description: String {
     switch self {
-    case .socketError(let error):       return "Socket Error \(error)"
+    case .socketError(let error):       return "\(error)"
     case .sendFailed(let error):        return "Send Failed \(error)"
     case .replyTooShort(let reply):     return "Reply Too Short \(reply)"
     case .badReply(let error):          return "Bad Reply \(error)"

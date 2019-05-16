@@ -84,9 +84,10 @@ internal class LIRCSocket {
   
   private let addr: Address
   
+  private let sockDesc: String
+  
   public init(host: String, port: Int16) throws {
-    self.fd = 0
-    
+    self.sockDesc = "\(host):\(port)"
     var info: UnsafeMutablePointer<addrinfo>?
     
     var status = getaddrinfo(host, String(port), nil, &info)
@@ -98,9 +99,6 @@ internal class LIRCSocket {
 
     if info == nil { throw LIRCError.socketError(error: "Couldn't get address info") }
 
-    print(info!.pointee.ai_addr.pointee)
-    print(info!.pointee.ai_next.pointee)
-    
     #if os(Linux)
     let sock_stream = Int32(SOCK_STREAM.rawValue)
     #else
@@ -120,12 +118,11 @@ internal class LIRCSocket {
       self.addr = .ipv6(addr)
     default: throw LIRCError.socketError(error: "Unknown socket family \(info!.pointee.ai_family)")
     }
-    
-    
   }
   
+
   public init(path: String = "/var/run/lirc/lircd") throws {
-    
+    self.sockDesc = path
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
     strcpy(&addr.sun_path.0, path)
@@ -152,7 +149,7 @@ internal class LIRCSocket {
     try self.addr.withSockaddrPointer { saddr in
       let c = System.connect(self.fd, saddr, socklen_t(self.addr.size))
       if c < 0 {
-        throw LIRCError.socketError(error: "Error connecting to socket: \(String(cString: strerror(errno)))")
+        throw LIRCError.socketError(error: "Cannot connect to socket \(sockDesc): \(String(cString: strerror(errno)))")
       }
     }
   }
@@ -207,7 +204,8 @@ internal class LIRCSocket {
       _ = System.close(fd)
     })
 
-    self.io?.setLimit(lowWater: 1)
+    self.io?.setLimit(lowWater: 16) // Broadcast is always commandHex(16bytes) count(1byte) keyCode(string) remote(string)
+    self.io?.setLimit(highWater: 22)
     // This warns that it can be replaced with Int(bitpattern: SIZE_MAX), but that breaks on RasPi, so ignore it
     self.io?.read(offset: 0, length: unsafeBitCast(SIZE_MAX, to: Int.self), queue: DispatchQueue.main, ioHandler: { (done, data, error) in
       let readString = data?.withUnsafeBytes(body: { (b: UnsafePointer<UInt8>) -> String? in
