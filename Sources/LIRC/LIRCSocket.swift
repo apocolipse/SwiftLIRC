@@ -204,8 +204,7 @@ internal class LIRCSocket {
       _ = System.close(fd)
     })
 
-    self.io?.setLimit(lowWater: 16) // Broadcast is always commandHex(16bytes) count(1byte) keyCode(string) remote(string)
-    self.io?.setLimit(highWater: 22)
+    self.io?.setLimit(lowWater: 23) // Broadcast is always commandHex(16bytes) count(2bytes) keyCode(string) remote(string), so at minimum 16+1+2+1+1+1+1=23 bytes
     // This warns that it can be replaced with Int(bitpattern: SIZE_MAX), but that breaks on RasPi, so ignore it
     self.io?.read(offset: 0, length: unsafeBitCast(SIZE_MAX, to: Int.self), queue: DispatchQueue.main, ioHandler: { (done, data, error) in
       let readString = data?.withUnsafeBytes(body: { (b: UnsafePointer<UInt8>) -> String? in
