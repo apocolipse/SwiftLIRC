@@ -205,11 +205,14 @@ internal class LIRCSocket {
     })
 
     self.io?.setLimit(lowWater: 23) // Broadcast is always <code>(16bytes) <repeat count>(2bytes) <button name> <remote name>, so at minimum 16+1+2+1+1+1+1=23 bytes minimum
-    // This warns that it can be replaced with Int(bitpattern: SIZE_MAX), but that breaks on RasPi, so ignore it
-    self.io?.read(offset: 0, length: unsafeBitCast(SIZE_MAX, to: Int.self), queue: DispatchQueue.main, ioHandler: { (done, data, error) in
+    
+    // DispatchIO internals use length of SIZE_MAX (UInt) to keep reading until EOF,
+    // U/Int doesn't play nice with init(bitPattern:) on linux platforms, and unsafeBitcast warns.
+    // -1 represents FFFFFFFF or FFFFFFFFFFFFFFFF on respective 32/64bit platforms, aka value of SIZE_MAX
+    self.io?.read(offset: 0, length: -1, queue: DispatchQueue.main, ioHandler: { (done, data, error) in
       let readString = data?.withUnsafeBytes(body: { (b: UnsafePointer<UInt8>) -> String? in
         return String(cString: b)
-      })?.trimmingCharacters(in: .whitespacesAndNewlines)
+      })?.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespacesAndNewlines) // Seems to sometimes read a newline and junk, not sure if DispatchIO or LIRCD's broadcast, either way its annoying and doesn't match output of irw
 
       // will have exactly 4 components <code> <repeat count> <button name> <remote control name>
       if readString?.components(separatedBy: " ").count == 4 {
