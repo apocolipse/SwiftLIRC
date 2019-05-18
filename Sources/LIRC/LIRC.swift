@@ -56,7 +56,7 @@ public enum SendType {
   case stop
   case count(Int)
   
-  init?(rawValue: String)  {
+  public init?(rawValue: String)  {
     if let i = Int(rawValue) {
       self = .count(i)
     }
@@ -67,7 +67,7 @@ public enum SendType {
     default: return nil
     }
   }
-  var rawValue: String {
+  public var rawValue: String {
     switch self {
     case .once:     return "send_once"
     case .start:    return "send_start"
