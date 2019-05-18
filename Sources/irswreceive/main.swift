@@ -12,7 +12,7 @@ let Version = "0.1.0"
 
 var l: LIRC
 let args = Array(CommandLine.arguments.dropFirst())
-if args.count > 0 {
+if args.count == 1 {
   switch args[0] {
   case "-h", "--help":
     print("""

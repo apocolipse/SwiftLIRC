@@ -50,8 +50,31 @@ public enum LIRCError : Error, CustomStringConvertible {
   }
 }
 
-public enum SendType : String {
-  case once, start, stop
+public enum SendType {
+  case once
+  case start
+  case stop
+  case count(Int)
+  
+  init?(rawValue: String)  {
+    if let i = Int(rawValue) {
+      self = .count(i)
+    }
+    switch rawValue {
+    case "send_once":   self = .once
+    case "send_start":  self = .start
+    case "send_stop":   self = .stop
+    default: return nil
+    }
+  }
+  var rawValue: String {
+    switch self {
+    case .once:     return "send_once"
+    case .start:    return "send_start"
+    case .stop:     return "send_stop"
+    case .count(_): return "send_once"
+    }
+  }
 }
 
 
@@ -162,8 +185,10 @@ public class LIRC {
   ///                   If false, LIRC response errors are ignored,
   ///                   if true, LIRCError will be thrown if LIRC response has errors
   /// - Throws: LIRCError (see waitForReply)
-  func send(_ type: SendType = .once, remote: String, command: String, count: Int = 0, waitForReply: Bool = false) throws {
-    try socketSend("send_\(type.rawValue)", remote, command, count: count, waitForReply: waitForReply)
+  func send(_ type: SendType = .once, remote: String, command: String, waitForReply: Bool = false) throws {
+    var count = 0
+    if case let .count(i) = type { count = i }
+    try socketSend("\(type.rawValue)", remote, command, count: count, waitForReply: waitForReply)
   }
 
   
