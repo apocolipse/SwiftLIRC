@@ -49,12 +49,12 @@ struct System {
 }
 
 internal class LIRCSocket {
-  private enum Address {
+  internal enum Address {
     case ipv4(sockaddr_in)
     case ipv6(sockaddr_in6)
     case unix(sockaddr_un)
     
-    var size: Int {
+    internal var size: Int {
       switch self {
       case .ipv4( _): return MemoryLayout<(sockaddr_in)>.size
       case .ipv6( _): return MemoryLayout<(sockaddr_in6)>.size
@@ -82,7 +82,7 @@ internal class LIRCSocket {
   
   public private(set) var fd: Int32
   
-  private let addr: Address
+  internal let addr: Address
   
   private let sockDesc: String
   

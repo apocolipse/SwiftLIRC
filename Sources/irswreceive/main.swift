@@ -12,11 +12,11 @@ let Version = "0.1.0"
 
 var l: LIRC
 let args = Array(CommandLine.arguments.dropFirst())
-if args.count == 1 {
+if args.count > 1 {
   switch args[0] {
   case "-h", "--help":
     print("""
-  Usage: irw [socket]
+  Usage: irw [socket|host] [port]
      -h --help     display usage summary
      -v --version     display version
   """)
@@ -26,10 +26,10 @@ if args.count == 1 {
     exit(0)
   default:
     let a = args[0].split(separator: ":")
-    if a.count > 1 {
-      l = LIRC(host: String(a[0]), port: Int16(String(a[1]))!)
-    } else {
+    if args[0].first == "/" {
       l = LIRC(socketPath: args[0])
+    } else {
+      l = LIRC(host: args[0], port: args.count > 1 ? Int16(args[1])! : 8765)
     }
   }
 } else {

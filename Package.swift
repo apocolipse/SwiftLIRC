@@ -22,5 +22,8 @@ let package = Package(
     .target(
       name: "LIRC",
       path: "./Sources/LIRC"),
+    .testTarget(
+      name: "LIRCTests",
+      dependencies: ["LIRC"]),
   ]
 )
