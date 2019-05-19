@@ -114,7 +114,7 @@ public class LIRC {
   ///
   /// - Returns: LIRC Socket
   /// - Throws: LIRCError if theres any issues creating the socket.
-  private func lircSocket() throws -> LIRCSocket {
+  internal func lircSocket() throws -> LIRCSocket {
     if socketPath != nil {
       return try LIRCSocket(path: socketPath!)
     } else {
@@ -212,6 +212,7 @@ public class LIRC {
     var data: [String] = []
     
     let message = "\(directive) \(remote) \(code)" + ((count > 0) ? " \(count)" : "")
+    if !waitForReply { try s.send(text: message, discardResult: !waitForReply) }
     if waitForReply == true,
        let output = try s.send(text: message, discardResult: !waitForReply) {
       

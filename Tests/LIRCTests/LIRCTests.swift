@@ -2,6 +2,7 @@ import XCTest
 @testable import LIRC
 
 final class LIRCTests: XCTestCase {
+  
   func testDefaultInstancePath() {
     XCTAssertEqual(LIRC().socketPath, "/var/run/lirc/lircd")
   }
@@ -80,8 +81,72 @@ final class LIRCTests: XCTestCase {
       XCTFail()
     }
   }
+  
+  func testSocketSendMessage() {
+    var messageText: String = ""
+    class TestSocket : LIRCSocket {
+      override func send(text: String, discardResult: Bool = true) throws -> String? {
+        debugPrint(text)
+        let expected = "\(testSendType.rawValue) \(testDeviceName) \(testCommandName)"
+        switch testSendType {
+        case .count(let count):
+          XCTAssertEqual(text, "\(testSendType.rawValue) \(testDeviceName) \(testCommandName) \(count)")
+        default:
+          XCTAssertEqual(text, "\(testSendType.rawValue) \(testDeviceName) \(testCommandName)")
+        }
+        return text
+      }
+      override func connect() throws { }
+      override func close() { }
+      var testDeviceName: String, testCommandName: String, testSendType: SendType
+      init(testDeviceName: String, testCommandName: String, testSendType: SendType) throws {
+        self.testDeviceName = testDeviceName
+        self.testCommandName = testCommandName
+        self.testSendType = testSendType
+        try super.init()
+      }
+    }
+    class TestLIRC : LIRC {
+      override func lircSocket() throws -> LIRCSocket {
+        return try TestSocket(testDeviceName: testDeviceName, testCommandName: testCommandName, testSendType: testSendType)
+      }
+      var testDeviceName: String, testCommandName: String, testSendType: SendType
+      init(testDeviceName: String, testCommandName: String, testSendType: SendType) throws {
+        self.testDeviceName = testDeviceName
+        self.testCommandName = testCommandName
+        self.testSendType = testSendType
+        try super.init()
+      }
+//      override func send(_ type: SendType = .once, remote: String, command: String, waitForReply: Bool = false) throws {
+//        <#code#>
+//      }
+    }
+    
+    do {
+      let l = try TestLIRC(testDeviceName: "TestDevice", testCommandName: "power", testSendType: .once)
+      let r = Remote.Command(name: "power", parentName: "TestDevice", lirc: l)
+
+      let socket = try l.lircSocket()
+      XCTAssertTrue(type(of: socket) == TestSocket.self)
+      try r.send()
+      
+      try l.send(.once, remote: "TestDevice", command: "power", waitForReply: false)
+      
+    } catch let error {
+      XCTAssertNotNil((error as? LIRCError), "Error should be LIRCError")
+      XCTFail()
+    }
+    
+  }
+  
+  
 
   static var allTests = [
     ("testDefaultInstancePath", testDefaultInstancePath),
+    ("testLircThrows", testLircThrows),
+    ("testLircInit", testLircInit),
+    ("testLIRCSocketCreate", testLIRCSocketCreate),
+    ("testSocketSendMessage", testSocketSendMessage)
+    
   ]
 }
