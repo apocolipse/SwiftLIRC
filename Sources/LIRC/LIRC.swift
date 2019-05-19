@@ -102,7 +102,7 @@ public class LIRC {
   /// Init with parameters for a TCP socket
   ///
   /// - Parameters:
-  ///   - host: Host to connect to (Supports IPv4 and IPv6)
+  ///   - host: Host to connect to (IPv4 and IPv6 are supported by this library, but lircd currently only supports IPv4 for now)
   ///   - port: Port to connect to
   public init(host: String, port: Int16) {
     self.host = host
@@ -218,7 +218,9 @@ public class LIRC {
         let lines = output.components(separatedBy: "\n").filter({$0 != "" && !$0.contains("\0") })
         if lines.count >= 4 {
           if lines[0] != "BEGIN" { throw LIRCError.badReply(error: "No BEGIN: \(output)") }
-          if lines[1] != "\(directive) \(remote) \(code)" { throw LIRCError.badReply(error: "Wrong reply message, expected \(message): \(output)") }
+          if lines[1].trimmingCharacters(in: .whitespacesAndNewlines) != "\(directive) \(remote) \(code)".trimmingCharacters(in: .whitespacesAndNewlines) {
+            throw LIRCError.badReply(error: "Wrong reply message, expected \(message): \(output)")
+          }
           if lines[2] != "SUCCESS" { throw LIRCError.badReply(error: "Not SUCCESS: \(output)") }
           if lines.last != "END" { throw LIRCError.badReply(error: "No END: \(output)") }
           if lines[3] == "DATA" {
