@@ -219,5 +219,8 @@ internal class LIRCSocket {
         closure(readString)
       }
     })
+    #if DEBUG
+    print("Listening on \(sockDesc)")
+    #endif
   }
 }

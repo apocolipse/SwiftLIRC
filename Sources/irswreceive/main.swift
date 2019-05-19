@@ -25,7 +25,6 @@ if args.count > 1 {
     print("irswreceive \(Version)")
     exit(0)
   default:
-    let a = args[0].split(separator: ":")
     if args[0].first == "/" {
       l = LIRC(socketPath: args[0])
     } else {

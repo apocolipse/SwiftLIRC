@@ -90,18 +90,30 @@ public class LIRC {
   var host: String?
   var port: Int16?
 
-  /// Initialize LIRC structure
+
+  /// Init with parameters for a UNIX socket
   ///
   /// - Parameter socketPath: Path for LIRC socket
   public init(socketPath: String = "/var/run/lirc/lircd") {
     self.socketPath = socketPath
   }
  
+  
+  /// Init with parameters for a TCP socket
+  ///
+  /// - Parameters:
+  ///   - host: Host to connect to (Supports IPv4 and IPv6)
+  ///   - port: Port to connect to
   public init(host: String, port: Int16) {
     self.host = host
     self.port = port
   }
   
+  
+  /// Get LIRCSocket based on configuration
+  ///
+  /// - Returns: LIRC Socket
+  /// - Throws: LIRCError if theres any issues creating the socket.
   private func lircSocket() throws -> LIRCSocket {
     if socketPath != nil {
       return try LIRCSocket(path: socketPath!)
