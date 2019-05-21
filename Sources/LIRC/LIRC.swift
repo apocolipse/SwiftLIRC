@@ -206,7 +206,7 @@ public class LIRC {
   
   
   @discardableResult
-  private func socketSend(_ directive: String, _ remote: String, _ code: String, count: Int = 0, waitForReply: Bool = false) throws -> [String] {
+  internal func socketSend(_ directive: String, _ remote: String, _ code: String, count: Int = 0, waitForReply: Bool = false) throws -> [String] {
     let s = try lircSocket()
     
     var data: [String] = []
@@ -214,28 +214,28 @@ public class LIRC {
     let message = "\(directive) \(remote) \(code)" + ((count > 0) ? " \(count)" : "")
     if !waitForReply { try s.send(text: message, discardResult: !waitForReply) }
     if waitForReply == true,
-       let output = try s.send(text: message, discardResult: !waitForReply) {
-      
-        let lines = output.components(separatedBy: "\n").filter({$0 != "" && !$0.contains("\0") })
-        if lines.count >= 4 {
-          if lines[0] != "BEGIN" { throw LIRCError.badReply(error: "No BEGIN: \(output)") }
-          if lines[1].trimmingCharacters(in: .whitespacesAndNewlines) != "\(directive) \(remote) \(code)".trimmingCharacters(in: .whitespacesAndNewlines) {
-            throw LIRCError.badReply(error: "Wrong reply message, expected \(message): \(output)")
-          }
-          if lines[2] != "SUCCESS" { throw LIRCError.badReply(error: "Not SUCCESS: \(output)") }
-          if lines.last != "END" { throw LIRCError.badReply(error: "No END: \(output)") }
-          if lines[3] == "DATA" {
-            if let count = Int(lines[4]) {
-              for i in 5..<min(5+count, lines.count) {
-                data.append(lines[i])
-              }
-              if data.count < count {
-                throw LIRCError.badData(error: "Expected \(count), got \(data.count)", data: data)
-              }
-            } else { throw LIRCError.badData(error: "Couldn't get Data count \(output)", data: nil)}
-            
-          } else { data.append(lines[2]) } // Good, append response message (SUCCESS)
-      }
+          let output = try s.send(text: message, discardResult: !waitForReply) {
+
+      let lines = output.components(separatedBy: "\n").filter({$0 != "" && !$0.contains("\0") })
+      if lines.count >= 4 {
+        if lines[0] != "BEGIN" { throw LIRCError.badReply(error: "No BEGIN: \(output)") }
+        if lines[1].trimmingCharacters(in: .whitespacesAndNewlines) != "\(directive) \(remote) \(code)".trimmingCharacters(in: .whitespacesAndNewlines) {
+          throw LIRCError.badReply(error: "Wrong reply message, expected \(message): \(output)")
+        }
+        if lines[2] != "SUCCESS" { throw LIRCError.badReply(error: "Not SUCCESS: \(output)") }
+        if lines.last != "END" { throw LIRCError.badReply(error: "No END: \(output)") }
+        if lines[3] == "DATA" {
+          if let count = Int(lines[4]) {
+            for i in 5..<min(5+count, lines.count) {
+              data.append(lines[i])
+            }
+            if data.count < count {
+              throw LIRCError.badData(error: "Expected \(count), got \(data.count)", data: data)
+            }
+          } else { throw LIRCError.badData(error: "Couldn't get Data count \(output)", data: nil)}
+          
+        } else { data.append(lines[2]) } // Good, append response message (SUCCESS)
+      } else { throw LIRCError.badReply(error: "Not enough data received for reply") }
     }
     return data
   }
