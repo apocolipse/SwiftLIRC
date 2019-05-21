@@ -59,6 +59,7 @@ public enum SendType {
   public init?(rawValue: String)  {
     if let i = Int(rawValue) {
       self = .count(i)
+      return
     }
     switch rawValue {
     case "send_once":   self = .once
@@ -117,9 +118,8 @@ public class LIRC {
   internal func lircSocket() throws -> LIRCSocket {
     if socketPath != nil {
       return try LIRCSocket(path: socketPath!)
-    } else {
-      return try LIRCSocket(host: host!, port: port!)
     }
+    return try LIRCSocket(host: host!, port: port!)
   }
   
   private var _allRemotes: [Remote] = []
@@ -128,11 +128,7 @@ public class LIRC {
   /// All remotes associated with this LIRC instance
   public var allRemotes: [Remote] {
     if _allRemotes.count == 0 {
-      do {
-        _allRemotes = try generateRemotes()
-      } catch let error {
-        print("Error \(error)")
-      }
+      _allRemotes = (try? generateRemotes()) ?? []
     }
     return _allRemotes
   }
