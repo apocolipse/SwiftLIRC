@@ -45,7 +45,8 @@ struct System {
   static let bind = Glibc.bind
   #endif
   
-  static let LIRCSleep = UInt32(1000)
+  static var LIRCSleepUnix = UInt32(1000)
+  static var LIRCSleepIP   = UInt32(11000)
 }
 
 internal class LIRCSocket {
@@ -179,8 +180,14 @@ internal class LIRCSocket {
       throw LIRCError.sendFailed(error: "Error sending to socket: \(String(cString: strerror(errno)))")
     }
     var output: String?
+    var isReady = false
     if !discardResult {
-      usleep(System.LIRCSleep)  // Need to sleep to read properly
+
+      // Need to sleep to read properly, this is ugly, plz fix without writing an entire fully fledged socket lib
+      switch addr {
+      case .unix: usleep(System.LIRCSleepUnix)
+      case .ipv4, .ipv6: usleep(System.LIRCSleepIP)
+      }
       var dat = [CChar](repeating: 0, count: 4096)
       let r = System.recv(fd, &dat, dat.count, Int32(MSG_DONTWAIT))
       if r < 0 {
@@ -230,3 +237,4 @@ internal class LIRCSocket {
     #endif
   }
 }
+

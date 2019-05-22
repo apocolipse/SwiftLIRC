@@ -66,7 +66,7 @@ final class LIRCTests: XCTestCase {
     
     usleep(1000)
     // Try sendnig data and receiving result to local HTTP server.  Not a valid HTTP request but should get a response either way
-    XCTAssertNoThrow(try LIRCSocket(host: "127.0.0.1", port: 8000).send(text: "hello world", discardResult: false),
+    XCTAssertNoThrow(try LIRCSocket(host: "127.0.0.1", port: 80).send(text: "hello world", discardResult: false),
                      "Please check HTTP Server running on Port 8000 first")
     
     // Test Socket Read, Expects 4 separated items on 1 line in the response, so HTTP/1.1 400 Bad Request should fulfil that requirement
@@ -351,6 +351,18 @@ final class LIRCTests: XCTestCase {
     XCTAssertEqual(SendType.stop.rawValue, "send_stop")
 
   }
+  
+  func testKnownInstance() {
+    // Uncomment all of this and test against a known LIRC socket
+    let l = LIRC(host: "10.0.0.10", port: 8765)
+    XCTAssertNoThrow(try l.listRemotes())
+    XCTAssertNotEqual(l.allRemotes.count, 0)
+    
+    let o =  System.LIRCSleepIP
+    System.LIRCSleepIP = 100
+    XCTAssertThrownError(try l.listRemotes(), throws: LIRCError.sendFailed(error: .empty))
+    System.LIRCSleepIP = o
+  }
 
   static var allTests = [
     ("testDefaultInstancePath", testDefaultInstancePath),
@@ -360,7 +372,10 @@ final class LIRCTests: XCTestCase {
     ("testSocketSendMessage", testSocketSendMessage),
     ("testLIRCReplyParse", testLIRCReplyParse),
     ("testRemotes", testRemotes),
-    ("testLircAddListener", testLircAddListener)
+    ("testLircAddListener", testLircAddListener),
+    ("testLIRCErrorDescription", testLIRCErrorDescription),
+    ("testSendType", testSendType),
+    ("testKnownInstance", testKnownInstance)
     
   ]
 }
