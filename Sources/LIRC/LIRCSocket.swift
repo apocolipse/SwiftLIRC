@@ -35,17 +35,18 @@ struct System {
   static let connect = Darwin.connect
   static let recv = Darwin.recv
   static let close = Darwin.close
-  
+  static let bind = Darwin.bind
   #else
   static let read = Glibc.read
   static let send = Glibc.send
   static let connect = Glibc.connect
   static let recv = Glibc.recv
   static let close = Glibc.close
-  
+  static let bind = Glibc.bind
   #endif
   
-  static let LIRCSleep = UInt32(1000)
+  static var LIRCSleepUnix = UInt32(1000)
+  static var LIRCSleepIP   = UInt32(11000)
 }
 
 internal class LIRCSocket {
@@ -143,6 +144,7 @@ internal class LIRCSocket {
   
   deinit {
     self.close()
+    //self.io?.close()
   }
   
   func connect() throws {
@@ -178,8 +180,14 @@ internal class LIRCSocket {
       throw LIRCError.sendFailed(error: "Error sending to socket: \(String(cString: strerror(errno)))")
     }
     var output: String?
+    var isReady = false
     if !discardResult {
-      usleep(System.LIRCSleep)  // Need to sleep to read properly
+
+      // Need to sleep to read properly, this is ugly, plz fix without writing an entire fully fledged socket lib
+      switch addr {
+      case .unix: usleep(System.LIRCSleepUnix)
+      case .ipv4, .ipv6: usleep(System.LIRCSleepIP)
+      }
       var dat = [CChar](repeating: 0, count: 4096)
       let r = System.recv(fd, &dat, dat.count, Int32(MSG_DONTWAIT))
       if r < 0 {
@@ -194,6 +202,9 @@ internal class LIRCSocket {
   }
   
   private var io: DispatchIO?
+  func removeListener() {
+    io?.close()
+  }
   
   func addListener(_ closure: @escaping (String?) -> Void) throws {
     if self.io != nil { self.close() }
@@ -210,7 +221,9 @@ internal class LIRCSocket {
     // U/Int doesn't play nice with init(bitPattern:) on linux platforms, and unsafeBitcast warns.
     // -1 represents FFFFFFFF or FFFFFFFFFFFFFFFF on respective 32/64bit platforms, aka value of SIZE_MAX
     self.io?.read(offset: 0, length: -1, queue: DispatchQueue.main, ioHandler: { (done, data, error) in
+      guard let count = data?.count, count != 0 else { return }
       let readString = data?.withUnsafeBytes(body: { (b: UnsafePointer<UInt8>) -> String? in
+        
         return String(cString: b)
       })?.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespacesAndNewlines) // Seems to sometimes read a newline and junk, not sure if DispatchIO or LIRCD's broadcast, either way its annoying and doesn't match output of irw
 
@@ -224,3 +237,4 @@ internal class LIRCSocket {
     #endif
   }
 }
+

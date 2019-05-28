@@ -17,7 +17,7 @@ final class LIRCTests: XCTestCase {
     XCTAssertThrownError(try netLIRCFake.listRemotes(), throws: LIRCError.socketError(error: .empty))
     XCTAssertThrowsError(try netLIRCFake.listRemotes()) {
       guard let e = $0 as? LIRCError else { XCTFail(); return }
-      XCTAssertEqual(e.description, "getaddrinfo 8")
+      XCTAssertEqual(e.description.split(separator: " ").first, "getaddrinfo")
     }
   }
 
@@ -36,11 +36,64 @@ final class LIRCTests: XCTestCase {
     XCTAssertNil(lircIPv4Host.socketPath)
     XCTAssertEqual(lircIPv4Host.host, "127.0.0.1")
     XCTAssertEqual(lircIPv4Host.port, 8765)
+    XCTAssertThrownError(try lircIPv4Host.listRemotes(), throws: LIRCError.socketError(error: .empty))
 
     let lircIPv6Host = LIRC(host: "::1", port: 8765)
     XCTAssertNil(lircIPv6Host.socketPath)
     XCTAssertEqual(lircIPv6Host.host, "::1")
     XCTAssertEqual(lircIPv6Host.port, 8765)
+    XCTAssertThrownError(try lircIPv6Host.listRemotes(), throws: LIRCError.socketError(error: .empty))
+  }
+  
+  func testSocketConnect() {
+    class TestLIRCSocket : LIRCSocket {
+      override func connect() throws {
+        return // do nothing, for testing Send fail
+      }
+    }
+    // Use port 80, macOS has a default server there, for linux, nginx or similar should be present
+    // If nothing is present, run the following for a simple netcat HTTP server:
+    //  macOS: while true; do echo -e "HTTP/1.1 200 OK\n\nHello $(id -un)\nCurrent time $(date)" | nc -l -p 8000 -c; done
+    //  linux: while true; do echo -e "HTTP/1.1 200 OK\n\nHello $(id -un)\nCurrent time $(date)" | nc -l -p 8000 -w0; done
+    //  otherBSD:  while true; do echo -e "HTTP/1.1 200 OK\n\nHello $(id -un)\nCurrent time $(date)" | nc -l -p 8000 -q0; done
+    XCTAssertNoThrow(try LIRCSocket(host: "127.0.0.1", port: 80).connect(),
+                     "Please check HTTP Server running on Port 80 first")
+
+    // Try sending data before connecting, should thrown an error
+    XCTAssertThrownError(try TestLIRCSocket(host: "127.0.0.1", port: 9999).send(text: "Hello World!"),
+                         throws: LIRCError.sendFailed(error: .empty),
+                         "Please check server NOT running on port 9999 first")
+    
+    usleep(1000)
+    // Try sendnig data and receiving result to local HTTP server.  Not a valid HTTP request but should get a response either way
+    XCTAssertNoThrow(try LIRCSocket(host: "127.0.0.1", port: 80).send(text: "hello world", discardResult: false),
+                     "Please check HTTP Server running on Port 8000 first")
+    
+    // Test Socket Read, Expects 4 separated items on 1 line in the response, so HTTP/1.1 400 Bad Request should fulfil that requirement
+    let readSocket = try! LIRCSocket(host: "127.0.0.1", port: 80)
+    
+    let delayExpectation = expectation(description: "Socket read")
+    try? readSocket.addListener {
+      XCTAssertNotNil($0)
+      readSocket.removeListener()
+      delayExpectation.fulfill()
+    }
+    
+    #if os(Linux)
+    let s = System.send(readSocket.fd, "Hello World\n", 12, Int32(MSG_NOSIGNAL))
+    #else
+    let s = System.send(readSocket.fd, "Hello World\n", 12, 0)
+    #endif
+    print("Send  resutl \(s)")
+    
+    waitForExpectations(timeout: 5, handler: nil)
+    
+    
+    // Test LIRC Add listener, don't need to actually listen, just cover that it adds things properly, connects, and nothing throws
+    let l = LIRC(host: "127.0.0.1", port: 80)
+    XCTAssertNoThrow({ try l.addListener({ _ in }) })
+//    l.removeAllListeners()
+    
   }
 
   func testLIRCSocketCreate() {
@@ -149,6 +202,7 @@ final class LIRCTests: XCTestCase {
       let testReplyDict: [String: String] = [
         "not-long-enough": "testforfail",
         "no-begin": "Stuff\nAnotherThing\nThree\nTest",
+        "list": "BEGIN\nlist\nSUCCESS\nDATA\n5\nRemote1\nRemote2\nRemote3\nRemote4\nRemote5\nEND",  // Good response (custom but expected directive)
         "list-good": "BEGIN\nlist-good\nSUCCESS\nDATA\n5\nRemote1\nRemote2\nRemote3\nRemote4\nRemote5\nEND",  // Good response (custom but expected directive)
         "list-bad":  "BEGIN\nlist-good\nSUCCESS\nDATA\n5\nRemote1\nRemote2\nRemote3\nRemote4\nRemote5\nEND",  // Bad resposne (custom and unexpected directive)
         "send_once":    "BEGIN\nsend_once myremote button1\nSUCCESS\nEND",                                             // Good response
@@ -168,11 +222,23 @@ final class LIRCTests: XCTestCase {
       override func lircSocket() throws -> LIRCSocket {
         return try TestSocket()
       }
-
+      override func listRemotes() throws -> [String] {
+        return ["remote1", "remote2", "remote3", "remote4", "remote5"]
+      }
+      override func listCommands(for remote: String) throws -> [String] {
+        return ["remote1": ["one", "two"],
+                "remote2": ["one", "two"],
+                "remote3": ["one", "two"],
+                "remote4": ["one", "two"],
+                "remote5": ["one", "two"]][remote] ?? []
+      }
     }
-    let l = TestLIRC()
-
+   
     
+    let l = TestLIRC()
+    XCTAssertEqual(l.allRemotes.count, 5)
+    // Expect list to have 5 things
+//    XCTAssertEqual(try? l.listRemotes().count, 5)
     
     // Expecting throw, test error
     XCTAssertThrownError(try l.socketSend("not-long-enough", .empty, .empty, waitForReply: true), throws: LIRCError.badReply(error: .empty))
@@ -232,14 +298,71 @@ final class LIRCTests: XCTestCase {
     let l = TestLIRC()
     XCTAssertNoThrow(try l.refreshRemotes())
     XCTAssertEqual(l.allRemotes.count, 1)
-    print(l.allRemotes)
+    
+    let r = LIRC()
+    XCTAssertEqual(r.allRemotes.count, 0)
+
     XCTAssertNoThrow(try l.remote(named: "testRemote"))
     XCTAssertThrownError(try l.remote(named: "badRemote"), throws: LIRCError.remoteNotFound(remote: .empty))
     XCTAssertNoThrow(try l.remote(named: "testRemote").command("testCommand"))
     XCTAssertThrownError(try l.remote(named: "testRemote").command("badCommand"), throws: LIRCError.commandNotFound(command: .empty))
-        
+    XCTAssertNotEqual(Remote(name: "test", commands: [.init(name: "test", parentName: "test", lirc: try! LIRC())]).description, .empty)
   }
   
+  func testLircAddListener() {
+    class TestSocket : LIRCSocket {
+      override func connect() throws { }
+      override func close() { }
+      override func send(text: String, discardResult: Bool = true) throws -> String? {
+        return text
+      }
+      override func addListener(_ closure: @escaping (String?) -> Void) throws { }
+    }
+    class TestLIRC : LIRC {
+      override func lircSocket() throws -> LIRCSocket {
+        return try TestSocket()
+      }
+    }
+    let l = TestLIRC()
+    XCTAssertNoThrow(try l.addListener({ print($0) }))
+  }
+  
+  func testLIRCErrorDescription() {
+    XCTAssertEqual(LIRCError.socketError(error: .empty).description, .empty)
+    XCTAssertNotEqual(LIRCError.sendFailed(error: .empty).description, .empty)
+    XCTAssertNotEqual(LIRCError.replyTooShort(reply: .empty).description, .empty)
+    XCTAssertNotEqual(LIRCError.badReply(error: .empty).description, .empty)
+    XCTAssertNotEqual(LIRCError.badData(error: .empty, data: nil).description, .empty)
+    XCTAssertNotEqual(LIRCError.remoteNotFound(remote: .empty).description, .empty)
+    XCTAssertNotEqual(LIRCError.commandNotFound(command: .empty).description, .empty)
+  }
+  
+  func testSendType() {
+    XCTAssertNil(SendType(rawValue: "bad"))
+
+    XCTAssertNotNil(SendType(rawValue: "send_once"))
+    XCTAssertNotNil(SendType(rawValue: "15"))
+    XCTAssertNotNil(SendType(rawValue: "send_start"))
+    XCTAssertNotNil(SendType(rawValue: "send_stop"))
+    
+    XCTAssertEqual(SendType.once.rawValue, "send_once")
+    XCTAssertEqual(SendType.count(0).rawValue, "send_once")
+    XCTAssertEqual(SendType.start.rawValue, "send_start")
+    XCTAssertEqual(SendType.stop.rawValue, "send_stop")
+
+  }
+  
+  func testKnownInstance() {
+    // Uncomment all of this and test against a known LIRC socket
+    let l = LIRC(host: "10.0.0.10", port: 8765)
+    XCTAssertNoThrow(try l.listRemotes())
+    XCTAssertNotEqual(l.allRemotes.count, 0)
+    
+    let o =  System.LIRCSleepIP
+    System.LIRCSleepIP = 100
+    XCTAssertThrownError(try l.listRemotes(), throws: LIRCError.sendFailed(error: .empty))
+    System.LIRCSleepIP = o
+  }
 
   static var allTests = [
     ("testDefaultInstancePath", testDefaultInstancePath),
@@ -248,7 +371,11 @@ final class LIRCTests: XCTestCase {
     ("testLIRCSocketCreate", testLIRCSocketCreate),
     ("testSocketSendMessage", testSocketSendMessage),
     ("testLIRCReplyParse", testLIRCReplyParse),
-    ("testRemotes", testRemotes)
+    ("testRemotes", testRemotes),
+    ("testLircAddListener", testLircAddListener),
+    ("testLIRCErrorDescription", testLIRCErrorDescription),
+    ("testSendType", testSendType),
+    ("testKnownInstance", testKnownInstance)
     
   ]
 }
