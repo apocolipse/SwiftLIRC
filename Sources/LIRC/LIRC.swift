@@ -237,6 +237,7 @@ public class LIRC {
         } else { data.append(lines[2]) } // Good, append response message (SUCCESS)
       } else { throw LIRCError.badReply(error: "Not enough data received for reply") }
     }
+    s.close()
     return data
   }
   
