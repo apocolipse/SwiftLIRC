@@ -193,24 +193,28 @@ public class LIRC {
   ///                   If false, LIRC response errors are ignored,
   ///                   if true, LIRCError will be thrown if LIRC response has errors
   /// - Throws: LIRCError (see waitForReply)
-  func send(_ type: SendType = .once, remote: String, command: String, waitForReply: Bool = false) throws {
+    func send(_ type: SendType = .once, remote: String, command: String, waitForReply: Bool = false, closeAfter: Bool = true) throws {
     var count = 0
     if case let .count(i) = type { count = i }
-    try socketSend("\(type.rawValue)", remote, command, count: count, waitForReply: waitForReply)
+    try socketSend("\(type.rawValue)", remote, command, count: count, waitForReply: waitForReply, closeAfter: closeAfter)
   }
 
   
-  
+  private var sendSock: LIRCSocket?
   @discardableResult
-  internal func socketSend(_ directive: String, _ remote: String, _ code: String, count: Int = 0, waitForReply: Bool = false) throws -> [String] {
-    let s = try lircSocket()
+    internal func socketSend(_ directive: String, _ remote: String, _ code: String, count: Int = 0, waitForReply: Bool = false, closeAfter: Bool = true) throws -> [String] {
+
+    // reuse socket if not closing after, otherwise use a fresh socket each time
+    if sendSock == nil {
+        sendSock = try lircSocket()
+    }
     
     var data: [String] = []
     
     let message = "\(directive) \(remote) \(code)" + ((count > 0) ? " \(count)" : "")
-    if !waitForReply { try s.send(text: message, discardResult: !waitForReply) }
+    if !waitForReply { try sendSock?.send(text: message, discardResult: !waitForReply, closeAfter: closeAfter) }
     if waitForReply == true,
-          let output = try s.send(text: message, discardResult: !waitForReply) {
+          let output = try sendSock?.send(text: message, discardResult: !waitForReply, closeAfter: closeAfter) {
 
       let lines = output.components(separatedBy: "\n").filter({$0 != "" && !$0.contains("\0") })
       if lines.count >= 4 {
@@ -233,7 +237,12 @@ public class LIRC {
         } else { data.append(lines[2]) } // Good, append response message (SUCCESS)
       } else { throw LIRCError.badReply(error: "Not enough data received for reply") }
     }
-    s.close()
+    
+    // reuse socket if not closing after, otherwise use a fresh socket each time
+    if closeAfter {
+        sendSock?.close()
+        sendSock = nil
+    }
     return data
   }
   

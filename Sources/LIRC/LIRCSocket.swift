@@ -163,7 +163,7 @@ internal class LIRCSocket {
   }
   
   @discardableResult
-  func send(text: String, discardResult: Bool = true) throws-> String? {
+    func send(text: String, discardResult: Bool = true, closeAfter: Bool = true) throws-> String? {
     // connect first
     try self.connect()
     
@@ -197,7 +197,9 @@ internal class LIRCSocket {
     }
     
     // cleanup
-    self.close()
+    if closeAfter {
+        self.close()
+    }
     return output
   }
   

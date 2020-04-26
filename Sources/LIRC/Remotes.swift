@@ -39,7 +39,7 @@ public struct Remote: CustomStringConvertible {
 
 
     /// LIRC object instance
-    fileprivate let lircInstance: LIRC
+    private let lircInstance: LIRC
 
 
     internal init(name: String, parentName: String, lirc: LIRC) {
@@ -55,8 +55,8 @@ public struct Remote: CustomStringConvertible {
     ///   - type: Send Type (once|start|stop)
     ///   - waitForReply: If True, reply will be validated and additional errors may be thrown
     /// - Throws: LIRCError
-    public func send(_ type: SendType = .once, waitForReply: Bool = false) throws {
-      try lircInstance.send(type, remote: parentName, command: name, waitForReply: waitForReply)
+    public func send(_ type: SendType = .once, waitForReply: Bool = false, closeAfter: Bool = true) throws {
+        try lircInstance.send(type, remote: parentName, command: name, waitForReply: waitForReply, closeAfter: closeAfter)
     }
 
     public var description: String { return name }
@@ -95,16 +95,14 @@ public struct Remote: CustomStringConvertible {
   /// - Returns: Command if found
   /// - Throws: LIRCError.commandNotFound if command doesn't exist
   public func sendCommandGroup(_ group: [String]) throws {
-    var l: LIRC?
     for s in group {
       // Ensure all comands are valid
       guard let c = self.commands.filter({ $0.name.lowercased() == s.lowercased() }).first else {
         throw LIRCError.commandNotFound(command: s)
       }
-      l = c.lircInstance;
+        // dont close the socket between sending
+        try c.send(closeAfter: s == group.last)
     }
-
-    try l?.send(.once, remote: name, command: group.joined(separator: " "), waitForReply: false)
   }
 
 
