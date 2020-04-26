@@ -94,14 +94,14 @@ public struct Remote: CustomStringConvertible {
   /// - Parameter s: String for command name
   /// - Returns: Command if found
   /// - Throws: LIRCError.commandNotFound if command doesn't exist
-  public func sendCommandGroup(_ group: [String]) throws {
+public func sendCommandGroup(_ group: [String], waitForReply: Bool = false) throws {
     for s in group {
       // Ensure all comands are valid
       guard let c = self.commands.filter({ $0.name.lowercased() == s.lowercased() }).first else {
         throw LIRCError.commandNotFound(command: s)
       }
         // dont close the socket between sending
-        try c.send(closeAfter: s == group.last)
+        try c.send(waitForReply: waitForReply, closeAfter: s == group.last)
     }
   }
 
