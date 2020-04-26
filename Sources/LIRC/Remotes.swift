@@ -26,29 +26,29 @@ import Glibc
 #endif
 
 public struct Remote: CustomStringConvertible {
-  
+
   public struct Command: CustomStringConvertible {
-    
-    
+
+
     /// Command name
     public let name: String
-    
-    
+
+
     /// Parent remote name
     public let parentName: String
-    
-    
+
+
     /// LIRC object instance
-    private let lircInstance: LIRC
-    
-    
+    fileprivate let lircInstance: LIRC
+
+
     internal init(name: String, parentName: String, lirc: LIRC) {
       self.name = name
       self.parentName = parentName
       self.lircInstance = lirc
     }
 
-    
+
     /// Send IR command
     ///
     /// - Parameters:
@@ -61,12 +61,12 @@ public struct Remote: CustomStringConvertible {
 
     public var description: String { return name }
   }
-  
-  
+
+
   /// Remote name
   public let name: String
-  
-  
+
+
   /// Remote commands
   public let commands: [Remote.Command]
 
@@ -75,7 +75,7 @@ public struct Remote: CustomStringConvertible {
     self.commands = commands
   }
 
-  
+
   /// Get command by name
   ///
   /// - Parameter s: String for command name
@@ -87,6 +87,26 @@ public struct Remote: CustomStringConvertible {
     }
     return c
   }
+
+
+  /// Get command by name
+  ///
+  /// - Parameter s: String for command name
+  /// - Returns: Command if found
+  /// - Throws: LIRCError.commandNotFound if command doesn't exist
+  public func sendCommandGroup(_ group: [String]) throws {
+    var l: LIRC?
+    for s in group {
+      // Ensure all comands are valid
+      guard let c = self.commands.filter({ $0.name.lowercased() == s.lowercased() }).first else {
+        throw LIRCError.commandNotFound(command: s)
+      }
+      l = c.lircInstance;
+    }
+
+    try l?.send(.once, remote: name, command: group.joined(separator: " "), waitForReply: false)
+  }
+
 
   public var description: String { return "Remote(\(name), Commands: \(commands) )\n" }
 }
