@@ -86,6 +86,7 @@ internal class LIRCSocket {
   internal let addr: Address
   
   private let sockDesc: String
+  private var connected: Bool = false
   
   public init(host: String, port: Int16) throws {
     self.sockDesc = "\(host):\(port)"
@@ -148,18 +149,22 @@ internal class LIRCSocket {
   }
   
   func connect() throws {
+    if self.connected { return }
     try self.addr.withSockaddrPointer { saddr in
       let c = System.connect(self.fd, saddr, socklen_t(self.addr.size))
       if c < 0 {
+        self.connected = false
         throw LIRCError.socketError(error: "Cannot connect to socket \(sockDesc): \(String(cString: strerror(errno)))")
       }
     }
+    self.connected = true
   }
   
   func close() {
     self.io?.close()
     self.io = nil
     _ = System.close(self.fd)
+    self.connected = false
   }
   
   @discardableResult
