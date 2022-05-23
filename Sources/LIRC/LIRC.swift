@@ -159,7 +159,7 @@ public class LIRC {
   /// - Returns: Remote if found
   /// - Throws: LIRCError.remoteNotFound if remote doesn't exist.
   public func remote(named: String) throws -> Remote {
-    guard let r = allRemotes.filter({$0.name.lowercased() == named.lowercased()}).first else {
+    guard let r = try allRemotes.filter({$0.name.lowercased() == named.lowercased()}).first else {
       throw LIRCError.remoteNotFound(remote: named)
     }
     return r
