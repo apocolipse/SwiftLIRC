@@ -142,7 +142,7 @@ final class LIRCTests: XCTestCase {
   func testSocketSendMessage() {
 
     class TestSocket : LIRCSocket {
-      override func send(text: String, discardResult: Bool = true) throws -> String? {
+      override func send(text: String, discardResult: Bool = true, closeAfter: Bool = true) throws -> String? {
         debugPrint(text)
 
         switch testSendType {
@@ -214,7 +214,7 @@ final class LIRCTests: XCTestCase {
       ]
       override func connect() throws { }
       override func close() { }
-      override func send(text: String, discardResult: Bool = true) throws -> String? {
+      override func send(text: String, discardResult: Bool = true, closeAfter: Bool = true) throws -> String? {
         return testReplyDict[text.split(separator: " ").first?.trimmingCharacters(in: .whitespaces) ?? "nil"]
       }
     }
@@ -278,7 +278,7 @@ final class LIRCTests: XCTestCase {
     class TestSocket : LIRCSocket {
       override func connect() throws { }
       override func close() { }
-      override func send(text: String, discardResult: Bool = true) throws -> String? {
+      override func send(text: String, discardResult: Bool = true, closeAfter: Bool = true) throws -> String? {
         switch text.trimmingCharacters(in: .whitespaces) {
         case "list":
           return "BEGIN\nlist\nSUCCESS\nDATA\n1\ntestRemote\nEND"
@@ -313,7 +313,7 @@ final class LIRCTests: XCTestCase {
     class TestSocket : LIRCSocket {
       override func connect() throws { }
       override func close() { }
-      override func send(text: String, discardResult: Bool = true) throws -> String? {
+      override func send(text: String, discardResult: Bool = true, closeAfter: Bool = true) throws -> String? {
         return text
       }
       override func addListener(_ closure: @escaping (String?) -> Void) throws { }
@@ -394,7 +394,7 @@ extension XCTestCase {
     ) {
     var thrownError: Error?
     
-    XCTAssertThrowsError(try expression(), message, file: file, line: line) {
+      XCTAssertThrowsError(try expression(), message(), file: file, line: line) {
       thrownError = $0
     }
     
