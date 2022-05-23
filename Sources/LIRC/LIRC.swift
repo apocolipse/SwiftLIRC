@@ -127,10 +127,12 @@ public class LIRC {
   
   /// All remotes associated with this LIRC instance
   public var allRemotes: [Remote] {
-    if _allRemotes.count == 0 {
-      _allRemotes = (try? generateRemotes()) ?? []
+    get throws {
+      if _allRemotes.count == 0 {
+        _allRemotes = (try generateRemotes()) ?? []
+      }
+      return _allRemotes
     }
-    return _allRemotes
   }
   
   private func generateRemotes() throws -> [Remote] {
