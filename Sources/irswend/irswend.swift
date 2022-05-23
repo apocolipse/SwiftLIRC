@@ -21,8 +21,11 @@ struct App {
       case "list":
         if args[args.startIndex + 1] == "" {
           // lis remotes
-          print(try LIRC().allRemotes)
+          try LIRC().allRemotes.forEach {
+            print($0.name)
+          }
         } else {
+          print("listing \(args[args.startIndex + 1])")
           if let remote = try? LIRC().remote(named: args[args.startIndex + 1]) {
             print(remote.commands)
           } else {
